@@ -37,7 +37,7 @@ func OK(ctx *fiber.Ctx, message string, data any) error {
 	})
 }
 
-func OKNoData(ctx *fiber.Ctx, message string) error {
+func OKWithoutData(ctx *fiber.Ctx, message string) error {
 	return ctx.Status(fiber.StatusOK).JSON(Success[any]{
 		Message: message,
 	})
@@ -50,7 +50,6 @@ func ErrorResponse(ctx *fiber.Ctx, status int, message string, errors []ErrorIte
 	})
 }
 
-// FormatValidationError converts go-playground/validator errors into the shared ErrorItem format.
 func FormatValidationError(err error) []ErrorItem {
 	verrs, ok := err.(validator.ValidationErrors)
 	if !ok {
@@ -78,15 +77,15 @@ func MapToResponseList[T any, R any](items []T, mapper func(T) R) []R {
 	return result
 }
 
-func MapToResponseListPaginate[T any, R any](items []T, total int64, page int, size int, mapper func(T) R) ([]R, *PaginateMetadata) {
+func MapToResponseListPaginate[T any, R any](items []T, total int64, page int, limit int, mapper func(T) R) ([]R, *PaginateMetadata) {
 	totalPage := 0
-	if size > 0 {
-		totalPage = int((total + int64(size) - 1) / int64(size))
+	if limit > 0 {
+		totalPage = int((total + int64(limit) - 1) / int64(limit))
 	}
 
 	return MapToResponseList(items, mapper), &PaginateMetadata{
 		Page:      page,
-		Size:      size,
+		Size:      len(items),
 		Total:     total,
 		TotalPage: totalPage,
 	}

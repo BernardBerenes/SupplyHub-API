@@ -8,6 +8,7 @@ import (
 	"github.com/BernardBerenes/SupplyHub-API/internal/config"
 	"github.com/BernardBerenes/SupplyHub-API/internal/database"
 	"github.com/BernardBerenes/SupplyHub-API/internal/middleware"
+	"github.com/BernardBerenes/SupplyHub-API/internal/products"
 	"github.com/BernardBerenes/SupplyHub-API/internal/users"
 )
 
@@ -19,7 +20,10 @@ func main() {
 		log.Fatalf("failed to connect database: %v", err)
 	}
 
-	err = database.Migrate(db, &users.User{})
+	err = database.Migrate(db,
+		&users.User{},
+		&products.Product{},
+	)
 	if err != nil {
 		log.Fatalf("failed to migrate database: %v", err)
 	}
@@ -27,7 +31,11 @@ func main() {
 	app := fiber.New()
 	app.Use(middleware.Recovery)
 
-	container := NewContainer(db, cfg)
+	container, err := NewContainer(db, cfg)
+	if err != nil {
+		log.Fatalf("failed to initialize container: %v", err)
+	}
+
 	RegisterRoutes(app, container)
 
 	log.Fatal(app.Listen(":" + cfg.Port))

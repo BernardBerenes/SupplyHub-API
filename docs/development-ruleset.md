@@ -645,10 +645,12 @@ func MapToResponseListPaginate[T any, R any](
     items []T,
     total int64,
     page int,
-    size int,
+    limit int,
     mapper func(T) R,
 ) ([]R, *PaginateMetadata)
 ```
+
+`limit` is the requested page size, used to calculate `total_page`. The returned metadata's `Size` is the actual number of items on the page (`len(items)`), which may be smaller than `limit` on the last page.
 
 These helpers must be reusable across all domains.
 
