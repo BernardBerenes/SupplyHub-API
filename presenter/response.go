@@ -7,6 +7,8 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
+var validate = validator.New()
+
 type Success[T any] struct {
 	Message          string            `json:"message"`
 	Data             T                 `json:"data,omitempty"`
@@ -66,6 +68,25 @@ func FormatValidationError(err error) []ErrorItem {
 	}
 
 	return items
+}
+
+func BindPaginate[T any](ctx *fiber.Ctx, req *T, page *int, limit *int, defaultLimit int) (ok bool, err error) {
+	if err := ctx.BodyParser(req); err != nil {
+		return false, ErrorResponse(ctx, fiber.StatusBadRequest, "Invalid request", nil)
+	}
+
+	if *page == 0 {
+		*page = 1
+	}
+	if *limit == 0 {
+		*limit = defaultLimit
+	}
+
+	if err := validate.Struct(req); err != nil {
+		return false, ErrorResponse(ctx, fiber.StatusBadRequest, "Invalid request", FormatValidationError(err))
+	}
+
+	return true, nil
 }
 
 func MapToResponseList[T any, R any](items []T, mapper func(T) R) []R {

@@ -8,18 +8,14 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
-	"log"
 	"mime/multipart"
 	"strconv"
 	"strings"
 
-	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/BernardBerenes/SupplyHub-API/presenter"
 )
-
-var validate = validator.New()
 
 const MAX_PHOTO_SIZE_BYTES = 5 * 1024 * 1024
 
@@ -74,7 +70,6 @@ func (h *Handler) Create(ctx *fiber.Ctx) error {
 	}
 
 	if err := h.useCase.Create(ctx.Context(), input); err != nil {
-		log.Printf("create product failed: %v", err)
 		return presenter.ErrorResponse(ctx, fiber.StatusInternalServerError, "Internal server error", nil)
 	}
 
@@ -86,7 +81,6 @@ func (h *Handler) List(ctx *fiber.Ctx) error {
 
 	products, err := h.useCase.List(ctx.Context(), name)
 	if err != nil {
-		log.Printf("list products failed: %v", err)
 		return presenter.ErrorResponse(ctx, fiber.StatusInternalServerError, "Internal server error", nil)
 	}
 
@@ -103,7 +97,6 @@ func (h *Handler) Detail(ctx *fiber.Ctx) error {
 		if errors.Is(err, ErrNotFound) {
 			return presenter.ErrorResponse(ctx, fiber.StatusNotFound, "Product not found", nil)
 		}
-		log.Printf("get product failed: %v", err)
 		return presenter.ErrorResponse(ctx, fiber.StatusInternalServerError, "Internal server error", nil)
 	}
 
@@ -115,24 +108,12 @@ func (h *Handler) Detail(ctx *fiber.Ctx) error {
 func (h *Handler) Paginate(ctx *fiber.Ctx) error {
 	var req PaginateRequest
 
-	if err := ctx.BodyParser(&req); err != nil {
-		return presenter.ErrorResponse(ctx, fiber.StatusBadRequest, "Invalid request", nil)
-	}
-
-	if req.Page == 0 {
-		req.Page = 1
-	}
-	if req.Limit == 0 {
-		req.Limit = 10
-	}
-
-	if err := validate.Struct(req); err != nil {
-		return presenter.ErrorResponse(ctx, fiber.StatusBadRequest, "Invalid request", presenter.FormatValidationError(err))
+	if ok, err := presenter.BindPaginate(ctx, &req, &req.Page, &req.Limit, 10); !ok {
+		return err
 	}
 
 	products, total, err := h.useCase.Paginate(ctx.Context(), req)
 	if err != nil {
-		log.Printf("paginate products failed: %v", err)
 		return presenter.ErrorResponse(ctx, fiber.StatusInternalServerError, "Internal server error", nil)
 	}
 
@@ -185,7 +166,6 @@ func (h *Handler) Update(ctx *fiber.Ctx) error {
 		if errors.Is(err, ErrNotFound) {
 			return presenter.ErrorResponse(ctx, fiber.StatusNotFound, "Product not found", nil)
 		}
-		log.Printf("update product failed: %v", err)
 		return presenter.ErrorResponse(ctx, fiber.StatusInternalServerError, "Internal server error", nil)
 	}
 
@@ -199,7 +179,6 @@ func (h *Handler) Delete(ctx *fiber.Ctx) error {
 		if errors.Is(err, ErrNotFound) {
 			return presenter.ErrorResponse(ctx, fiber.StatusNotFound, "Product not found", nil)
 		}
-		log.Printf("delete product failed: %v", err)
 		return presenter.ErrorResponse(ctx, fiber.StatusInternalServerError, "Internal server error", nil)
 	}
 

@@ -6,6 +6,7 @@ import (
 	"github.com/BernardBerenes/SupplyHub-API/internal/config"
 	"github.com/BernardBerenes/SupplyHub-API/internal/products"
 	"github.com/BernardBerenes/SupplyHub-API/internal/storage"
+	"github.com/BernardBerenes/SupplyHub-API/internal/stores"
 	"github.com/BernardBerenes/SupplyHub-API/internal/users"
 )
 
@@ -13,6 +14,7 @@ type Container struct {
 	JWTSecret      string
 	UserHandler    *users.Handler
 	ProductHandler *products.Handler
+	StoreHandler   *stores.Handler
 }
 
 func NewContainer(db *gorm.DB, cfg *config.Config) (*Container, error) {
@@ -29,9 +31,14 @@ func NewContainer(db *gorm.DB, cfg *config.Config) (*Container, error) {
 	productUseCase := products.NewUseCase(productRepo, minioClient)
 	productHandler := products.NewHandler(productUseCase)
 
+	storeRepo := stores.NewRepository(db)
+	storeUseCase := stores.NewUseCase(storeRepo)
+	storeHandler := stores.NewHandler(storeUseCase)
+
 	return &Container{
 		JWTSecret:      cfg.JWTSecret,
 		UserHandler:    userHandler,
 		ProductHandler: productHandler,
+		StoreHandler:   storeHandler,
 	}, nil
 }

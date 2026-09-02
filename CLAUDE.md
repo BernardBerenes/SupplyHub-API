@@ -423,3 +423,9 @@ Before considering the task complete, verify that:
 - New functionality has appropriate tests where applicable.
 
 If a requirement cannot be implemented consistently with the existing architecture, explain the conflict before making a significant architectural change.
+
+### 3.3 Code Style
+
+- Do not add comments to code. Code must be self-explanatory through naming.
+- Do not add logging (`log.Printf`, `log.Println`, etc.) in Handler, UseCase, or Repository code. Error paths must return the appropriate error/response without logging it.
+  - Exception: fatal startup errors in `cmd/server/main.go` (e.g. failing to connect to the database or start the server) may use `log.Fatal`/`log.Fatalf`, since the process cannot continue and there is no request/response to return instead.

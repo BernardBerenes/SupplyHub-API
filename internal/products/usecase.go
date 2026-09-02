@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"log"
 
 	"github.com/google/uuid"
 )
@@ -111,9 +110,7 @@ func (u *UseCase) Update(ctx context.Context, id string, input UpdateInput) erro
 	}
 
 	if input.Photo != nil && existing.Photo != nil {
-		if err := u.storage.Delete(ctx, *existing.Photo); err != nil {
-			log.Printf("failed to delete old product photo %s: %v", *existing.Photo, err)
-		}
+		_ = u.storage.Delete(ctx, *existing.Photo)
 	}
 
 	return nil

@@ -9,6 +9,7 @@ import (
 	"github.com/BernardBerenes/SupplyHub-API/internal/database"
 	"github.com/BernardBerenes/SupplyHub-API/internal/middleware"
 	"github.com/BernardBerenes/SupplyHub-API/internal/products"
+	"github.com/BernardBerenes/SupplyHub-API/internal/stores"
 	"github.com/BernardBerenes/SupplyHub-API/internal/users"
 )
 
@@ -23,6 +24,7 @@ func main() {
 	err = database.Migrate(db,
 		&users.User{},
 		&products.Product{},
+		&stores.Store{},
 	)
 	if err != nil {
 		log.Fatalf("failed to migrate database: %v", err)

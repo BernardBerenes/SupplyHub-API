@@ -2,7 +2,6 @@ package users
 
 import (
 	"errors"
-	"log"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
@@ -38,7 +37,6 @@ func (h *Handler) Login(ctx *fiber.Ctx) error {
 		if errors.Is(err, ErrInvalidCredentials) {
 			return presenter.ErrorResponse(ctx, fiber.StatusUnauthorized, "Invalid username or password", nil)
 		}
-		log.Printf("login failed: %v", err)
 		return presenter.ErrorResponse(ctx, fiber.StatusInternalServerError, "Internal server error", nil)
 	}
 
