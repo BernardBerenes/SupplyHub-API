@@ -58,6 +58,14 @@ func (u *UseCase) Update(ctx context.Context, id int64, input UpdateInput) error
 	return u.repo.Update(ctx, id, updates)
 }
 
+func (u *UseCase) FindByID(ctx context.Context, id int64) (*Store, error) {
+	return u.repo.FindByID(ctx, id)
+}
+
+func (u *UseCase) FindByIDIncludingDeleted(ctx context.Context, id int64) (*Store, error) {
+	return u.repo.FindByIDIncludingDeleted(ctx, id)
+}
+
 func (u *UseCase) Delete(ctx context.Context, id int64) error {
 	rows, err := u.repo.SoftDelete(ctx, id)
 	if err != nil {

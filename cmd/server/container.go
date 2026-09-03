@@ -7,14 +7,16 @@ import (
 	"github.com/BernardBerenes/SupplyHub-API/internal/products"
 	"github.com/BernardBerenes/SupplyHub-API/internal/storage"
 	"github.com/BernardBerenes/SupplyHub-API/internal/stores"
+	"github.com/BernardBerenes/SupplyHub-API/internal/transactions"
 	"github.com/BernardBerenes/SupplyHub-API/internal/users"
 )
 
 type Container struct {
-	JWTSecret      string
-	UserHandler    *users.Handler
-	ProductHandler *products.Handler
-	StoreHandler   *stores.Handler
+	JWTSecret          string
+	UserHandler        *users.Handler
+	ProductHandler     *products.Handler
+	StoreHandler       *stores.Handler
+	TransactionHandler *transactions.Handler
 }
 
 func NewContainer(db *gorm.DB, cfg *config.Config) (*Container, error) {
@@ -35,10 +37,15 @@ func NewContainer(db *gorm.DB, cfg *config.Config) (*Container, error) {
 	storeUseCase := stores.NewUseCase(storeRepo)
 	storeHandler := stores.NewHandler(storeUseCase)
 
+	transactionRepo := transactions.NewRepository(db)
+	transactionUseCase := transactions.NewUseCase(transactionRepo, storeUseCase)
+	transactionHandler := transactions.NewHandler(transactionUseCase)
+
 	return &Container{
-		JWTSecret:      cfg.JWTSecret,
-		UserHandler:    userHandler,
-		ProductHandler: productHandler,
-		StoreHandler:   storeHandler,
+		JWTSecret:          cfg.JWTSecret,
+		UserHandler:        userHandler,
+		ProductHandler:     productHandler,
+		StoreHandler:       storeHandler,
+		TransactionHandler: transactionHandler,
 	}, nil
 }

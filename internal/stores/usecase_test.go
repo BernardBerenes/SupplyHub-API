@@ -30,6 +30,15 @@ func (r *fakeRepo) FindByID(ctx context.Context, id int64) (*Store, error) {
 	return nil, nil
 }
 
+func (r *fakeRepo) FindByIDIncludingDeleted(ctx context.Context, id int64) (*Store, error) {
+	for _, s := range r.stores {
+		if s.ID == id {
+			return &s, nil
+		}
+	}
+	return nil, nil
+}
+
 func (r *fakeRepo) FindPaginated(ctx context.Context, name string, limit, offset int) ([]Store, int64, error) {
 	return r.stores, r.total, nil
 }
