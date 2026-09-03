@@ -1,6 +1,7 @@
 package transactions
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"time"
@@ -10,13 +11,22 @@ import (
 	"github.com/BernardBerenes/SupplyHub-API/presenter"
 )
 
-type Handler struct {
-	useCase *UseCase
+// DetailSyncer lets the Transaction Detail module's product-name sync run as
+// part of this domain's sync endpoint, without this module depending on that
+// module's Repository or Usecase directly.
+type DetailSyncer interface {
+	SyncProductNames(ctx context.Context) error
 }
 
-func NewHandler(useCase *UseCase) *Handler {
+type Handler struct {
+	useCase      *UseCase
+	detailSyncer DetailSyncer
+}
+
+func NewHandler(useCase *UseCase, detailSyncer DetailSyncer) *Handler {
 	return &Handler{
-		useCase: useCase,
+		useCase:      useCase,
+		detailSyncer: detailSyncer,
 	}
 }
 
@@ -168,6 +178,10 @@ func (h *Handler) Delete(ctx *fiber.Ctx) error {
 
 func (h *Handler) Sync(ctx *fiber.Ctx) error {
 	if err := h.useCase.SyncStoreNames(ctx.Context()); err != nil {
+		return presenter.ErrorResponse(ctx, fiber.StatusInternalServerError, "Internal server error", nil)
+	}
+
+	if err := h.detailSyncer.SyncProductNames(ctx.Context()); err != nil {
 		return presenter.ErrorResponse(ctx, fiber.StatusInternalServerError, "Internal server error", nil)
 	}
 

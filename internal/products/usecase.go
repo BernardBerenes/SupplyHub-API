@@ -69,6 +69,14 @@ func (u *UseCase) Detail(ctx context.Context, id string) (*Product, error) {
 	return product, nil
 }
 
+func (u *UseCase) FindByID(ctx context.Context, id string) (*Product, error) {
+	return u.repo.FindByID(ctx, id)
+}
+
+func (u *UseCase) FindByIDIncludingDeleted(ctx context.Context, id string) (*Product, error) {
+	return u.repo.FindByIDIncludingDeleted(ctx, id)
+}
+
 func (u *UseCase) Paginate(ctx context.Context, req PaginateRequest) ([]Product, int64, error) {
 	offset := (req.Page - 1) * req.Limit
 

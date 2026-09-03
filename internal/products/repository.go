@@ -12,6 +12,7 @@ type Repository interface {
 	Create(ctx context.Context, product *Product) error
 	FindActive(ctx context.Context, name string) ([]Product, error)
 	FindByID(ctx context.Context, id string) (*Product, error)
+	FindByIDIncludingDeleted(ctx context.Context, id string) (*Product, error)
 	FindPaginated(ctx context.Context, name string, limit, offset int) ([]Product, int64, error)
 	Update(ctx context.Context, id string, updates map[string]interface{}) error
 	SoftDelete(ctx context.Context, id string) (int64, error)
@@ -56,6 +57,27 @@ func (r *repository) FindByID(ctx context.Context, id string) (*Product, error) 
 		Select("id", "name", "price", "photo").
 		Where("id = ?", id).
 		Where("deleted_at IS NULL").
+		First(&product).
+		Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return &product, nil
+}
+
+func (r *repository) FindByIDIncludingDeleted(ctx context.Context, id string) (*Product, error) {
+	var product Product
+
+	err := r.db.
+		WithContext(ctx).
+		Table("products").
+		Select("id", "name", "price", "photo").
+		Where("id = ?", id).
 		First(&product).
 		Error
 

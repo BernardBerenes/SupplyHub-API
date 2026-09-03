@@ -34,4 +34,10 @@ func RegisterRoutes(app *fiber.App, c *Container) {
 	transactions.Post("/sync", c.TransactionHandler.Sync)
 	transactions.Patch("/:uuid", c.TransactionHandler.Update)
 	transactions.Delete("/:uuid", c.TransactionHandler.Delete)
+
+	transactionDetails := transactions.Group("/:transaction_id/details")
+	transactionDetails.Post("", c.TransactionDetailHandler.Create)
+	transactionDetails.Post("/paginate", c.TransactionDetailHandler.Paginate)
+	transactionDetails.Patch("/:uuid", c.TransactionDetailHandler.Update)
+	transactionDetails.Delete("/:uuid", c.TransactionDetailHandler.Delete)
 }

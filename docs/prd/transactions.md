@@ -654,10 +654,11 @@ The server must:
 1. Retrieve every active (`deleted_at IS NULL`) transaction with `delivery_status = PENDING`.
 2. For each transaction, look up the current name of the store referenced by `store.id`, regardless of that store's own soft-delete status.
 3. Update `store.name` on the transaction when it differs from the current store name.
+4. Also sync the `product.name` snapshot of every active transaction detail belonging to those same `PENDING` transactions — see [Transaction Detail PRD, FR-13](./transaction-details.md).
 
-Transactions with `delivery_status` of `ON_DELIVERY` or `DELIVERED` must not be modified by this endpoint.
+Transactions with `delivery_status` of `ON_DELIVERY` or `DELIVERED` must not be modified by this endpoint, and neither must their transaction details.
 
-The sync is not scoped by store or date — it evaluates all eligible transactions in a single call.
+The sync is not scoped by store, date, or transaction — it evaluates all eligible transactions (and their details) in a single call.
 
 Success response:
 

@@ -2,6 +2,7 @@ package transactions
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -12,8 +13,17 @@ import (
 	"github.com/BernardBerenes/SupplyHub-API/internal/stores"
 )
 
+type fakeDetailSyncer struct {
+	called bool
+}
+
+func (s *fakeDetailSyncer) SyncProductNames(ctx context.Context) error {
+	s.called = true
+	return nil
+}
+
 func newTestApp(repo Repository, storeRepo StoreLookup) *fiber.App {
-	h := NewHandler(NewUseCase(repo, storeRepo))
+	h := NewHandler(NewUseCase(repo, storeRepo), &fakeDetailSyncer{})
 
 	app := fiber.New()
 	app.Post("/transactions", h.Create)

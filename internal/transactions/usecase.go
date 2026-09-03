@@ -123,6 +123,30 @@ func (u *UseCase) Update(ctx context.Context, id string, input UpdateInput) erro
 	return u.repo.Update(ctx, id, updates)
 }
 
+// Exists and FindAllPendingIDs let other modules (e.g. transaction details)
+// depend on this module's Usecase instead of its Repository.
+func (u *UseCase) Exists(ctx context.Context, id string) (bool, error) {
+	transaction, err := u.repo.FindByID(ctx, id)
+	if err != nil {
+		return false, err
+	}
+	return transaction != nil, nil
+}
+
+func (u *UseCase) FindAllPendingIDs(ctx context.Context) ([]string, error) {
+	pending, err := u.repo.FindAllPending(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	ids := make([]string, len(pending))
+	for i, transaction := range pending {
+		ids[i] = transaction.ID
+	}
+
+	return ids, nil
+}
+
 func (u *UseCase) Delete(ctx context.Context, id string) error {
 	rows, err := u.repo.SoftDelete(ctx, id)
 	if err != nil {
