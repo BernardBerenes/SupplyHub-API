@@ -21,6 +21,7 @@ type Config struct {
 	MinIOSecretKey string
 	MinIOUseSSL    bool
 	MinIOBucket    string
+	CORSOrigins    string
 }
 
 func Load() *Config {
@@ -34,6 +35,7 @@ func Load() *Config {
 	viper.SetDefault("JWT_EXPIRY_MINUTES", 30)
 	viper.SetDefault("MINIO_USE_SSL", false)
 	viper.SetDefault("MINIO_BUCKET", "supplyhub")
+	viper.SetDefault("CORS_ORIGINS", "http://localhost:3000")
 
 	return &Config{
 		Port:           viper.GetString("PORT"),
@@ -50,5 +52,6 @@ func Load() *Config {
 		MinIOSecretKey: viper.GetString("MINIO_SECRET_KEY"),
 		MinIOUseSSL:    viper.GetBool("MINIO_USE_SSL"),
 		MinIOBucket:    viper.GetString("MINIO_BUCKET"),
+		CORSOrigins:    viper.GetString("CORS_ORIGINS"),
 	}
 }

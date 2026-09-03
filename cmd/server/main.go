@@ -36,6 +36,7 @@ func main() {
 
 	app := fiber.New()
 	app.Use(middleware.Recovery)
+	app.Use(middleware.CORS(cfg.CORSOrigins))
 
 	container, err := NewContainer(db, cfg)
 	if err != nil {
