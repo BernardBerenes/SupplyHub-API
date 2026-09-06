@@ -34,6 +34,9 @@ func (h *Handler) Create(ctx *fiber.Ctx) error {
 	}
 
 	if err := h.useCase.Create(ctx.Context(), CreateInput{Name: name}); err != nil {
+		if errors.Is(err, ErrDuplicateName) {
+			return presenter.ErrorResponse(ctx, fiber.StatusConflict, "Store name already exists", nil)
+		}
 		return presenter.ErrorResponse(ctx, fiber.StatusInternalServerError, "Internal server error", nil)
 	}
 
@@ -102,6 +105,9 @@ func (h *Handler) Update(ctx *fiber.Ctx) error {
 	if err := h.useCase.Update(ctx.Context(), int64(id), input); err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return presenter.ErrorResponse(ctx, fiber.StatusNotFound, "Store not found", nil)
+		}
+		if errors.Is(err, ErrDuplicateName) {
+			return presenter.ErrorResponse(ctx, fiber.StatusConflict, "Store name already exists", nil)
 		}
 		return presenter.ErrorResponse(ctx, fiber.StatusInternalServerError, "Internal server error", nil)
 	}

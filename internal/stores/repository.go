@@ -10,6 +10,7 @@ import (
 
 type Repository interface {
 	Create(ctx context.Context, store *Store) error
+	ExistsActiveByName(ctx context.Context, name string, excludeID int64) (bool, error)
 	FindActive(ctx context.Context, name string) ([]Store, error)
 	FindByID(ctx context.Context, id int64) (*Store, error)
 	FindByIDIncludingDeleted(ctx context.Context, id int64) (*Store, error)
@@ -34,6 +35,24 @@ func (r *repository) Create(ctx context.Context, store *Store) error {
 		Table("stores").
 		Create(store).
 		Error
+}
+
+func (r *repository) ExistsActiveByName(ctx context.Context, name string, excludeID int64) (bool, error) {
+	var count int64
+
+	query := r.db.
+		WithContext(ctx).
+		Table("stores").
+		Where("deleted_at IS NULL").
+		Where("name = ?", name)
+
+	if excludeID > 0 {
+		query = query.Where("id != ?", excludeID)
+	}
+
+	err := query.Count(&count).Error
+
+	return count > 0, err
 }
 
 func (r *repository) FindActive(ctx context.Context, name string) ([]Store, error) {

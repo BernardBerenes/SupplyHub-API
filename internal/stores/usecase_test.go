@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 )
 
 type fakeRepo struct {
@@ -15,6 +16,15 @@ type fakeRepo struct {
 func (r *fakeRepo) Create(ctx context.Context, store *Store) error {
 	r.stores = append(r.stores, *store)
 	return nil
+}
+
+func (r *fakeRepo) ExistsActiveByName(ctx context.Context, name string, excludeID int64) (bool, error) {
+	for _, s := range r.stores {
+		if s.Name == name && s.DeletedAt == nil && s.ID != excludeID {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (r *fakeRepo) FindActive(ctx context.Context, name string) ([]Store, error) {
@@ -64,6 +74,26 @@ func TestCreate_TrimsNameAndPersists(t *testing.T) {
 
 	if len(repo.stores) != 1 || repo.stores[0].Name != "Main Store" {
 		t.Fatalf("expected trimmed name persisted, got %+v", repo.stores)
+	}
+}
+
+func TestCreate_DuplicateActiveName(t *testing.T) {
+	repo := &fakeRepo{stores: []Store{{ID: 1, Name: "Main Store"}}}
+	uc := NewUseCase(repo)
+
+	err := uc.Create(context.Background(), CreateInput{Name: "Main Store"})
+	if !errors.Is(err, ErrDuplicateName) {
+		t.Fatalf("expected ErrDuplicateName, got %v", err)
+	}
+}
+
+func TestCreate_AllowsNameReusedFromDeletedStore(t *testing.T) {
+	deletedAt := time.Now()
+	repo := &fakeRepo{stores: []Store{{ID: 1, Name: "Main Store", DeletedAt: &deletedAt}}}
+	uc := NewUseCase(repo)
+
+	if err := uc.Create(context.Background(), CreateInput{Name: "Main Store"}); err != nil {
+		t.Fatalf("expected success, got error: %v", err)
 	}
 }
 

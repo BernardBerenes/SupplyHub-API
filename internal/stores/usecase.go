@@ -6,7 +6,10 @@ import (
 	"strings"
 )
 
-var ErrNotFound = errors.New("store not found")
+var (
+	ErrNotFound      = errors.New("store not found")
+	ErrDuplicateName = errors.New("store name already exists")
+)
 
 type UseCase struct {
 	repo Repository
@@ -19,8 +22,18 @@ func NewUseCase(repo Repository) *UseCase {
 }
 
 func (u *UseCase) Create(ctx context.Context, input CreateInput) error {
+	name := strings.TrimSpace(input.Name)
+
+	exists, err := u.repo.ExistsActiveByName(ctx, name, 0)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return ErrDuplicateName
+	}
+
 	store := &Store{
-		Name: strings.TrimSpace(input.Name),
+		Name: name,
 	}
 
 	return u.repo.Create(ctx, store)
@@ -48,7 +61,17 @@ func (u *UseCase) Update(ctx context.Context, id int64, input UpdateInput) error
 	updates := map[string]interface{}{}
 
 	if input.Name != nil {
-		updates["name"] = strings.TrimSpace(*input.Name)
+		name := strings.TrimSpace(*input.Name)
+
+		exists, err := u.repo.ExistsActiveByName(ctx, name, id)
+		if err != nil {
+			return err
+		}
+		if exists {
+			return ErrDuplicateName
+		}
+
+		updates["name"] = name
 	}
 
 	if len(updates) == 0 {

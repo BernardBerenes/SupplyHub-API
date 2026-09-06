@@ -3,47 +3,17 @@ package main
 import (
 	"log"
 
-	"github.com/gofiber/fiber/v2"
-
+	"github.com/BernardBerenes/SupplyHub-API/internal/app"
 	"github.com/BernardBerenes/SupplyHub-API/internal/config"
-	"github.com/BernardBerenes/SupplyHub-API/internal/database"
-	"github.com/BernardBerenes/SupplyHub-API/internal/middleware"
-	"github.com/BernardBerenes/SupplyHub-API/internal/products"
-	"github.com/BernardBerenes/SupplyHub-API/internal/stores"
-	"github.com/BernardBerenes/SupplyHub-API/internal/transactiondetails"
-	"github.com/BernardBerenes/SupplyHub-API/internal/transactions"
-	"github.com/BernardBerenes/SupplyHub-API/internal/users"
 )
 
 func main() {
 	cfg := config.Load()
 
-	db, err := database.NewPostgres(cfg)
+	fiberApp, err := app.New(cfg)
 	if err != nil {
-		log.Fatalf("failed to connect database: %v", err)
+		log.Fatalf("failed to initialize application: %v", err)
 	}
 
-	err = database.Migrate(db,
-		&users.User{},
-		&products.Product{},
-		&stores.Store{},
-		&transactions.Transaction{},
-		&transactiondetails.TransactionDetail{},
-	)
-	if err != nil {
-		log.Fatalf("failed to migrate database: %v", err)
-	}
-
-	app := fiber.New()
-	app.Use(middleware.Recovery)
-	app.Use(middleware.CORS(cfg.CORSOrigins))
-
-	container, err := NewContainer(db, cfg)
-	if err != nil {
-		log.Fatalf("failed to initialize container: %v", err)
-	}
-
-	RegisterRoutes(app, container)
-
-	log.Fatal(app.Listen(":" + cfg.Port))
+	log.Fatal(fiberApp.Listen(":" + cfg.Port))
 }
