@@ -1,8 +1,3 @@
-// Package handler is the Vercel Go serverless entrypoint. Vercel invokes
-// Handler per request instead of running a long-lived process, so the Fiber
-// app (DB connection + migration + routes, built once via internal/app.New)
-// is initialized lazily on the first invocation of each warm instance and
-// reused across subsequent invocations on that instance.
 package handler
 
 import (
@@ -38,6 +33,8 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
+
+	r.RequestURI = r.URL.RequestURI()
 
 	proxyHandler(w, r)
 }
