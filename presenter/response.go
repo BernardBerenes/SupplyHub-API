@@ -52,6 +52,10 @@ func ErrorResponse(ctx *fiber.Ctx, status int, message string, errors []ErrorIte
 	})
 }
 
+func Validate(req any) error {
+	return validate.Struct(req)
+}
+
 func FormatValidationError(err error) []ErrorItem {
 	verrs, ok := err.(validator.ValidationErrors)
 	if !ok {

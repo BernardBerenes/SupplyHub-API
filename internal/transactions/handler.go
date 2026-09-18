@@ -176,6 +176,34 @@ func (h *Handler) Delete(ctx *fiber.Ctx) error {
 	return presenter.OKWithoutData(ctx, "Transaction deleted successfully")
 }
 
+func (h *Handler) Revenue(ctx *fiber.Ctx) error {
+	var req RevenueRequest
+
+	if err := ctx.BodyParser(&req); err != nil {
+		return presenter.ErrorResponse(ctx, fiber.StatusBadRequest, "Invalid request", nil)
+	}
+
+	req.Period = strings.ToLower(strings.TrimSpace(req.Period))
+	req.GroupBy = strings.ToLower(strings.TrimSpace(req.GroupBy))
+
+	if err := presenter.Validate(&req); err != nil {
+		return presenter.ErrorResponse(ctx, fiber.StatusBadRequest, "Invalid request", presenter.FormatValidationError(err))
+	}
+
+	if req.DateFrom != "" && req.DateTo != "" && req.DateTo < req.DateFrom {
+		return presenter.ErrorResponse(ctx, fiber.StatusBadRequest, "Invalid request", []presenter.ErrorItem{
+			{Field: "date_to", Message: "date_to must not be before date_from"},
+		})
+	}
+
+	result, err := h.useCase.Revenue(ctx.Context(), req)
+	if err != nil {
+		return presenter.ErrorResponse(ctx, fiber.StatusInternalServerError, "Internal server error", nil)
+	}
+
+	return presenter.OK(ctx, "Revenue retrieved successfully", result)
+}
+
 func (h *Handler) Sync(ctx *fiber.Ctx) error {
 	if err := h.useCase.SyncStoreNames(ctx.Context()); err != nil {
 		return presenter.ErrorResponse(ctx, fiber.StatusInternalServerError, "Internal server error", nil)

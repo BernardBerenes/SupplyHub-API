@@ -113,3 +113,49 @@ func ToResponse(t Transaction) TransactionResponse {
 		Date:           t.Date.Format(DateFormat),
 	}
 }
+
+const (
+	PERIOD_1D  = "1d"
+	PERIOD_1M  = "1m"
+	PERIOD_3M  = "3m"
+	PERIOD_6M  = "6m"
+	PERIOD_1Y  = "1y"
+	PERIOD_ALL = "all"
+
+	GROUP_BY_DAY   = "day"
+	GROUP_BY_WEEK  = "week"
+	GROUP_BY_MONTH = "month"
+	GROUP_BY_TOTAL = "total"
+)
+
+type RevenueRequest struct {
+	Period   string `json:"period" validate:"omitempty,oneof=1d 1m 3m 6m 1y all"`
+	DateFrom string `json:"date_from" validate:"omitempty,datetime=2006-01-02"`
+	DateTo   string `json:"date_to" validate:"omitempty,datetime=2006-01-02"`
+	GroupBy  string `json:"group_by" validate:"omitempty,oneof=day week month"`
+}
+
+type RevenueBucket struct {
+	Period  string
+	Revenue int64
+}
+
+type RevenueFilter struct {
+	DateFrom string
+	DateTo   string
+	GroupBy  string
+}
+
+type RevenuePoint struct {
+	Period  string `json:"period"`
+	Revenue int64  `json:"revenue"`
+}
+
+type RevenueResponse struct {
+	Period       string         `json:"period"`
+	GroupBy      string         `json:"group_by"`
+	DateFrom     string         `json:"date_from"`
+	DateTo       string         `json:"date_to"`
+	TotalRevenue int64          `json:"total_revenue"`
+	Points       []RevenuePoint `json:"points"`
+}

@@ -3,6 +3,8 @@ package transactions
 import (
 	"context"
 	"errors"
+	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -157,6 +159,140 @@ func (u *UseCase) Delete(ctx context.Context, id string) error {
 	}
 
 	return nil
+}
+
+func (u *UseCase) Revenue(ctx context.Context, req RevenueRequest) (RevenueResponse, error) {
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+
+	var from, to time.Time
+	to = today
+
+	if req.DateFrom != "" || req.DateTo != "" {
+		if req.DateFrom != "" {
+			from, _ = time.Parse(DateFormat, req.DateFrom)
+		}
+		if req.DateTo != "" {
+			to, _ = time.Parse(DateFormat, req.DateTo)
+		}
+		if req.DateFrom == "" {
+			earliest, err := u.repo.FindEarliestPaidDate(ctx)
+			if err != nil {
+				return RevenueResponse{}, err
+			}
+			if earliest != nil {
+				from = *earliest
+			} else {
+				from = to
+			}
+		}
+	} else {
+		switch req.Period {
+		case PERIOD_1D:
+			from = today
+		case PERIOD_1M:
+			from = today.AddDate(0, -1, 0)
+		case PERIOD_3M:
+			from = today.AddDate(0, -3, 0)
+		case PERIOD_6M:
+			from = today.AddDate(0, -6, 0)
+		case PERIOD_1Y:
+			from = today.AddDate(-1, 0, 0)
+		case PERIOD_ALL:
+			earliest, err := u.repo.FindEarliestPaidDate(ctx)
+			if err != nil {
+				return RevenueResponse{}, err
+			}
+			if earliest != nil {
+				from = *earliest
+			} else {
+				from = today
+			}
+		default:
+			from = today.AddDate(0, -1, 0)
+		}
+	}
+
+	groupBy := req.GroupBy
+	if groupBy == "" {
+		groupBy = autoGroupBy(from, to)
+	}
+
+	filter := RevenueFilter{
+		DateFrom: from.Format(DateFormat),
+		DateTo:   to.Format(DateFormat),
+		GroupBy:  groupBy,
+	}
+
+	buckets, err := u.repo.SumRevenueByBucket(ctx, filter)
+	if err != nil {
+		return RevenueResponse{}, err
+	}
+
+	revenueByPeriod := make(map[string]int64, len(buckets))
+	var total int64
+	for _, b := range buckets {
+		revenueByPeriod[b.Period] = b.Revenue
+		total += b.Revenue
+	}
+
+	points := buildPoints(from, to, groupBy, revenueByPeriod)
+
+	return RevenueResponse{
+		Period:       req.Period,
+		GroupBy:      groupBy,
+		DateFrom:     filter.DateFrom,
+		DateTo:       filter.DateTo,
+		TotalRevenue: total,
+		Points:       points,
+	}, nil
+}
+
+func autoGroupBy(from, to time.Time) string {
+	days := int(to.Sub(from).Hours() / 24)
+	switch {
+	case days <= 1:
+		return GROUP_BY_TOTAL
+	case days <= 62:
+		return GROUP_BY_DAY
+	default:
+		return GROUP_BY_MONTH
+	}
+}
+
+func buildPoints(from, to time.Time, groupBy string, revenueByPeriod map[string]int64) []RevenuePoint {
+	points := []RevenuePoint{}
+
+	switch groupBy {
+	case GROUP_BY_TOTAL:
+		key := "total"
+		points = append(points, RevenuePoint{Period: key, Revenue: revenueByPeriod[key]})
+	case GROUP_BY_DAY:
+		for d := from; !d.After(to); d = d.AddDate(0, 0, 1) {
+			key := d.Format(DateFormat)
+			points = append(points, RevenuePoint{Period: key, Revenue: revenueByPeriod[key]})
+		}
+	case GROUP_BY_WEEK:
+		seen := map[string]bool{}
+		for d := from; !d.After(to); d = d.AddDate(0, 0, 1) {
+			year, week := d.ISOWeek()
+			key := fmt.Sprintf("%04d-W%02d", year, week)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			points = append(points, RevenuePoint{Period: key, Revenue: revenueByPeriod[key]})
+		}
+	case GROUP_BY_MONTH:
+		start := time.Date(from.Year(), from.Month(), 1, 0, 0, 0, 0, time.UTC)
+		end := time.Date(to.Year(), to.Month(), 1, 0, 0, 0, 0, time.UTC)
+		for d := start; !d.After(end); d = d.AddDate(0, 1, 0) {
+			key := d.Format("2006-01")
+			points = append(points, RevenuePoint{Period: key, Revenue: revenueByPeriod[key]})
+		}
+	}
+
+	return points
 }
 
 func (u *UseCase) SyncStoreNames(ctx context.Context) error {

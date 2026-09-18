@@ -10,10 +10,12 @@ import (
 )
 
 type fakeRepo struct {
-	transactions []Transaction
-	total        int64
-	pending      bool
-	deletedID    string
+	transactions   []Transaction
+	total          int64
+	pending        bool
+	deletedID      string
+	revenueBuckets []RevenueBucket
+	earliestPaid   *time.Time
 }
 
 func (r *fakeRepo) Create(ctx context.Context, transaction *Transaction) error {
@@ -74,6 +76,14 @@ func (r *fakeRepo) SoftDelete(ctx context.Context, id string) (int64, error) {
 		return 0, nil
 	}
 	return 1, nil
+}
+
+func (r *fakeRepo) SumRevenueByBucket(ctx context.Context, filter RevenueFilter) ([]RevenueBucket, error) {
+	return r.revenueBuckets, nil
+}
+
+func (r *fakeRepo) FindEarliestPaidDate(ctx context.Context) (*time.Time, error) {
+	return r.earliestPaid, nil
 }
 
 type fakeStoreLookup struct {
@@ -207,5 +217,134 @@ func TestSyncStoreNames_UpdatesOnlyPendingWithChangedName(t *testing.T) {
 	}
 	if repo.transactions[1].Store.Name != "Toko Surya" {
 		t.Fatalf("expected non-pending transaction untouched, got %+v", repo.transactions[1])
+	}
+}
+
+func TestRevenue_FillsEmptyMonthBuckets(t *testing.T) {
+	repo := &fakeRepo{
+		revenueBuckets: []RevenueBucket{
+			{Period: "2026-07", Revenue: 5000},
+			{Period: "2026-09", Revenue: 3000},
+		},
+	}
+	uc := NewUseCase(repo, &fakeStoreLookup{})
+
+	res, err := uc.Revenue(context.Background(), RevenueRequest{
+		DateFrom: "2026-07-01",
+		DateTo:   "2026-09-30",
+		GroupBy:  GROUP_BY_MONTH,
+	})
+	if err != nil {
+		t.Fatalf("expected success, got %v", err)
+	}
+
+	if len(res.Points) != 3 {
+		t.Fatalf("expected 3 month points, got %d: %+v", len(res.Points), res.Points)
+	}
+
+	want := []RevenuePoint{
+		{Period: "2026-07", Revenue: 5000},
+		{Period: "2026-08", Revenue: 0},
+		{Period: "2026-09", Revenue: 3000},
+	}
+	for i, p := range want {
+		if res.Points[i] != p {
+			t.Fatalf("point %d mismatch: want %+v, got %+v", i, p, res.Points[i])
+		}
+	}
+
+	if res.TotalRevenue != 8000 {
+		t.Fatalf("expected total 8000, got %d", res.TotalRevenue)
+	}
+}
+
+func TestRevenue_FillsEmptyDayBuckets(t *testing.T) {
+	repo := &fakeRepo{
+		revenueBuckets: []RevenueBucket{
+			{Period: "2026-09-03", Revenue: 1000},
+		},
+	}
+	uc := NewUseCase(repo, &fakeStoreLookup{})
+
+	res, err := uc.Revenue(context.Background(), RevenueRequest{
+		DateFrom: "2026-09-01",
+		DateTo:   "2026-09-05",
+		GroupBy:  GROUP_BY_DAY,
+	})
+	if err != nil {
+		t.Fatalf("expected success, got %v", err)
+	}
+
+	if len(res.Points) != 5 {
+		t.Fatalf("expected 5 day points, got %d: %+v", len(res.Points), res.Points)
+	}
+	if res.Points[0].Period != "2026-09-01" || res.Points[4].Period != "2026-09-05" {
+		t.Fatalf("unexpected day range: %+v", res.Points)
+	}
+	if res.Points[2].Revenue != 1000 || res.TotalRevenue != 1000 {
+		t.Fatalf("unexpected revenue mapping: %+v total=%d", res.Points, res.TotalRevenue)
+	}
+}
+
+func TestRevenue_WeekBucketFormat(t *testing.T) {
+	repo := &fakeRepo{
+		revenueBuckets: []RevenueBucket{
+			{Period: "2026-W38", Revenue: 2500},
+		},
+	}
+	uc := NewUseCase(repo, &fakeStoreLookup{})
+
+	res, err := uc.Revenue(context.Background(), RevenueRequest{
+		DateFrom: "2026-09-14",
+		DateTo:   "2026-09-20",
+		GroupBy:  GROUP_BY_WEEK,
+	})
+	if err != nil {
+		t.Fatalf("expected success, got %v", err)
+	}
+
+	if len(res.Points) != 1 || res.Points[0].Period != "2026-W38" {
+		t.Fatalf("expected single 2026-W38 bucket, got %+v", res.Points)
+	}
+	if res.Points[0].Revenue != 2500 {
+		t.Fatalf("expected week revenue 2500, got %d", res.Points[0].Revenue)
+	}
+}
+
+func TestAutoGroupBy(t *testing.T) {
+	cases := []struct {
+		from, to string
+		want     string
+	}{
+		{"2026-09-18", "2026-09-18", GROUP_BY_TOTAL},
+		{"2026-08-19", "2026-09-18", GROUP_BY_DAY},
+		{"2025-09-18", "2026-09-18", GROUP_BY_MONTH},
+	}
+	for _, c := range cases {
+		from, _ := time.Parse(DateFormat, c.from)
+		to, _ := time.Parse(DateFormat, c.to)
+		if got := autoGroupBy(from, to); got != c.want {
+			t.Fatalf("autoGroupBy(%s,%s) = %s, want %s", c.from, c.to, got, c.want)
+		}
+	}
+}
+
+func TestRevenue_PeriodAllUsesEarliestPaidDate(t *testing.T) {
+	earliest, _ := time.Parse(DateFormat, "2026-01-15")
+	repo := &fakeRepo{
+		earliestPaid:   &earliest,
+		revenueBuckets: []RevenueBucket{{Period: "2026-01", Revenue: 4000}},
+	}
+	uc := NewUseCase(repo, &fakeStoreLookup{})
+
+	res, err := uc.Revenue(context.Background(), RevenueRequest{Period: PERIOD_ALL})
+	if err != nil {
+		t.Fatalf("expected success, got %v", err)
+	}
+	if res.DateFrom != "2026-01-15" {
+		t.Fatalf("expected date_from from earliest paid date, got %s", res.DateFrom)
+	}
+	if res.GroupBy != GROUP_BY_MONTH {
+		t.Fatalf("expected month grouping for all-time span, got %s", res.GroupBy)
 	}
 }

@@ -24,6 +24,8 @@ type Repository interface {
 	FindAllPending(ctx context.Context) ([]Transaction, error)
 	Update(ctx context.Context, id string, updates map[string]interface{}) error
 	SoftDelete(ctx context.Context, id string) (int64, error)
+	SumRevenueByBucket(ctx context.Context, filter RevenueFilter) ([]RevenueBucket, error)
+	FindEarliestPaidDate(ctx context.Context) (*time.Time, error)
 }
 
 type repository struct {
@@ -134,6 +136,53 @@ func (r *repository) SoftDelete(ctx context.Context, id string) (int64, error) {
 		Update("deleted_at", time.Now())
 
 	return result.RowsAffected, result.Error
+}
+
+func (r *repository) SumRevenueByBucket(ctx context.Context, filter RevenueFilter) ([]RevenueBucket, error) {
+	var buckets []RevenueBucket
+
+	var bucketExpr string
+	switch filter.GroupBy {
+	case GROUP_BY_DAY:
+		bucketExpr = `to_char(t.date, 'YYYY-MM-DD')`
+	case GROUP_BY_WEEK:
+		bucketExpr = `to_char(t.date, 'IYYY-"W"IW')`
+	case GROUP_BY_MONTH:
+		bucketExpr = `to_char(t.date, 'YYYY-MM')`
+	default:
+		bucketExpr = `'total'`
+	}
+
+	err := r.db.
+		WithContext(ctx).
+		Table("transactions AS t").
+		Select(bucketExpr+" AS period, COALESCE(SUM(d.quantity * d.price), 0) AS revenue").
+		Joins("JOIN transaction_details AS d ON d.transaction_id = t.id AND d.deleted_at IS NULL").
+		Where("t.deleted_at IS NULL").
+		Where("t.payment_status = ?", PAYMENT_STATUS_PAID).
+		Where("t.date >= ?", filter.DateFrom).
+		Where("t.date <= ?", filter.DateTo).
+		Group("period").
+		Order("period ASC").
+		Scan(&buckets).
+		Error
+
+	return buckets, err
+}
+
+func (r *repository) FindEarliestPaidDate(ctx context.Context) (*time.Time, error) {
+	var earliest *time.Time
+
+	err := r.db.
+		WithContext(ctx).
+		Table("transactions").
+		Where("deleted_at IS NULL").
+		Where("payment_status = ?", PAYMENT_STATUS_PAID).
+		Select("MIN(date)").
+		Scan(&earliest).
+		Error
+
+	return earliest, err
 }
 
 func (r *repository) filtered(ctx context.Context, filter PaginateFilter) *gorm.DB {

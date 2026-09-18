@@ -87,6 +87,7 @@ func RegisterRoutes(app *fiber.App, c *Container) {
 	transactions := api.Group("/transactions", auth)
 	transactions.Post("", c.TransactionHandler.Create)
 	transactions.Post("/paginate", c.TransactionHandler.Paginate)
+	transactions.Post("/revenue", c.TransactionHandler.Revenue)
 	transactions.Post("/sync", c.TransactionHandler.Sync)
 	transactions.Patch("/:uuid", c.TransactionHandler.Update)
 	transactions.Delete("/:uuid", c.TransactionHandler.Delete)
