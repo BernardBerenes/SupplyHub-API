@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gofiber/fiber/v2"
@@ -73,6 +74,32 @@ func TestHandlerCreate_EmptyName(t *testing.T) {
 	}
 }
 
+func TestHandlerCreate_NameTooLong(t *testing.T) {
+	repo := &fakeRepo{}
+	app := newTestApp(repo)
+
+	longName := strings.Repeat("a", 101)
+	resp := doRequest(t, app, http.MethodPost, "/stores", `{"name":"`+longName+`"}`)
+
+	if resp.StatusCode != fiber.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", resp.StatusCode)
+	}
+}
+
+func TestHandlerCreate_TrimsWhitespace(t *testing.T) {
+	repo := &fakeRepo{}
+	app := newTestApp(repo)
+
+	resp := doRequest(t, app, http.MethodPost, "/stores", `{"name":"  Main Store  "}`)
+
+	if resp.StatusCode != fiber.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if len(repo.stores) != 1 || repo.stores[0].Name != "Main Store" {
+		t.Fatalf("expected trimmed name persisted, got %+v", repo.stores)
+	}
+}
+
 func TestHandlerList_Success(t *testing.T) {
 	repo := &fakeRepo{stores: []Store{{ID: 1, Name: "Main Store"}}}
 	app := newTestApp(repo)
@@ -126,6 +153,18 @@ func TestHandlerUpdate_Success(t *testing.T) {
 
 	if resp.StatusCode != fiber.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestHandlerUpdate_NameTooLong(t *testing.T) {
+	repo := &fakeRepo{stores: []Store{{ID: 1, Name: "Old Name"}}}
+	app := newTestApp(repo)
+
+	longName := strings.Repeat("a", 101)
+	resp := doRequest(t, app, http.MethodPatch, "/stores/1", `{"name":"`+longName+`"}`)
+
+	if resp.StatusCode != fiber.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", resp.StatusCode)
 	}
 }
 

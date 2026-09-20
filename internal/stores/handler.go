@@ -27,9 +27,9 @@ func (h *Handler) Create(ctx *fiber.Ctx) error {
 	}
 
 	name := strings.TrimSpace(req.Name)
-	if name == "" {
+	if name == "" || len(name) > 100 {
 		return presenter.ErrorResponse(ctx, fiber.StatusBadRequest, "Invalid request", []presenter.ErrorItem{
-			{Field: "name", Message: "name is required"},
+			{Field: "name", Message: "name is required and must be at most 100 characters"},
 		})
 	}
 
@@ -94,9 +94,9 @@ func (h *Handler) Update(ctx *fiber.Ctx) error {
 
 	if req.Name != nil {
 		name := strings.TrimSpace(*req.Name)
-		if name == "" {
+		if name == "" || len(name) > 100 {
 			return presenter.ErrorResponse(ctx, fiber.StatusBadRequest, "Invalid request", []presenter.ErrorItem{
-				{Field: "name", Message: "name must not be empty"},
+				{Field: "name", Message: "name must not be empty and must be at most 100 characters"},
 			})
 		}
 		input.Name = &name
