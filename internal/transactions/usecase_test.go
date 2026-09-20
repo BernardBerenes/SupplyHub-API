@@ -15,8 +15,9 @@ type fakeRepo struct {
 	pending        bool
 	deletedID      string
 	revenueBuckets []RevenueBucket
-	earliestPaid   *time.Time
+	earliestDate   *time.Time
 	totalPrices    map[string]int64
+	statusCounts   StatusCounts
 }
 
 func (r *fakeRepo) Create(ctx context.Context, transaction *Transaction) error {
@@ -83,8 +84,8 @@ func (r *fakeRepo) SumRevenueByBucket(ctx context.Context, filter RevenueFilter)
 	return r.revenueBuckets, nil
 }
 
-func (r *fakeRepo) FindEarliestPaidDate(ctx context.Context) (*time.Time, error) {
-	return r.earliestPaid, nil
+func (r *fakeRepo) FindEarliestDate(ctx context.Context) (*time.Time, error) {
+	return r.earliestDate, nil
 }
 
 func (r *fakeRepo) SumTotalPriceByTransactionIDs(ctx context.Context, transactionIDs []string) (map[string]int64, error) {
@@ -93,6 +94,10 @@ func (r *fakeRepo) SumTotalPriceByTransactionIDs(ctx context.Context, transactio
 		totals[id] = r.totalPrices[id]
 	}
 	return totals, nil
+}
+
+func (r *fakeRepo) CountStatusesInRange(ctx context.Context, dateFrom, dateTo string) (StatusCounts, error) {
+	return r.statusCounts, nil
 }
 
 type fakeStoreLookup struct {
@@ -267,6 +272,37 @@ func TestRevenue_FillsEmptyMonthBuckets(t *testing.T) {
 	}
 }
 
+func TestRevenue_IncludesStatusCounts(t *testing.T) {
+	repo := &fakeRepo{
+		statusCounts: StatusCounts{
+			PaidCount:         3,
+			UnpaidCount:       2,
+			PendingDeliveries: 1,
+			OnDelivery:        2,
+			DeliveredCount:    2,
+		},
+	}
+	uc := NewUseCase(repo, &fakeStoreLookup{})
+
+	res, err := uc.Revenue(context.Background(), RevenueRequest{
+		DateFrom: "2026-09-01",
+		DateTo:   "2026-09-30",
+	})
+	if err != nil {
+		t.Fatalf("expected success, got %v", err)
+	}
+
+	if res.TransactionCount != 5 {
+		t.Fatalf("expected transaction_count 5 (paid+unpaid), got %d", res.TransactionCount)
+	}
+	if res.PaidCount != 3 || res.UnpaidCount != 2 {
+		t.Fatalf("expected paid_count 3 and unpaid_count 2, got %+v", res)
+	}
+	if res.PendingDeliveries != 1 || res.OnDelivery != 2 || res.DeliveredCount != 2 {
+		t.Fatalf("expected delivery breakdown 1/2/2, got %+v", res)
+	}
+}
+
 func TestRevenue_FillsEmptyDayBuckets(t *testing.T) {
 	repo := &fakeRepo{
 		revenueBuckets: []RevenueBucket{
@@ -338,10 +374,10 @@ func TestAutoGroupBy(t *testing.T) {
 	}
 }
 
-func TestRevenue_PeriodAllUsesEarliestPaidDate(t *testing.T) {
+func TestRevenue_PeriodAllUsesEarliestDate(t *testing.T) {
 	earliest, _ := time.Parse(DateFormat, "2026-01-15")
 	repo := &fakeRepo{
-		earliestPaid:   &earliest,
+		earliestDate:   &earliest,
 		revenueBuckets: []RevenueBucket{{Period: "2026-01", Revenue: 4000}},
 	}
 	uc := NewUseCase(repo, &fakeStoreLookup{})
@@ -351,9 +387,33 @@ func TestRevenue_PeriodAllUsesEarliestPaidDate(t *testing.T) {
 		t.Fatalf("expected success, got %v", err)
 	}
 	if res.DateFrom != "2026-01-15" {
-		t.Fatalf("expected date_from from earliest paid date, got %s", res.DateFrom)
+		t.Fatalf("expected date_from from earliest transaction date, got %s", res.DateFrom)
 	}
 	if res.GroupBy != GROUP_BY_MONTH {
 		t.Fatalf("expected month grouping for all-time span, got %s", res.GroupBy)
+	}
+}
+
+// Regression: "all time" must span every transaction, not just PAID ones.
+// If the earliest transaction overall is UNPAID and newer transactions are
+// PAID, using the earliest PAID date as the "all time" start would truncate
+// the range and silently drop older UNPAID transactions from the counts.
+func TestRevenue_PeriodAllIncludesTransactionsOlderThanEarliestPaid(t *testing.T) {
+	earliestOverall, _ := time.Parse(DateFormat, "2025-01-01")
+	repo := &fakeRepo{
+		earliestDate: &earliestOverall,
+		statusCounts: StatusCounts{PaidCount: 1, UnpaidCount: 3},
+	}
+	uc := NewUseCase(repo, &fakeStoreLookup{})
+
+	res, err := uc.Revenue(context.Background(), RevenueRequest{Period: PERIOD_ALL})
+	if err != nil {
+		t.Fatalf("expected success, got %v", err)
+	}
+	if res.DateFrom != "2025-01-01" {
+		t.Fatalf("expected date_from to span back to the earliest transaction of any status, got %s", res.DateFrom)
+	}
+	if res.TransactionCount != 4 || res.UnpaidCount != 3 {
+		t.Fatalf("expected all 4 transactions (3 unpaid) counted, got %+v", res)
 	}
 }

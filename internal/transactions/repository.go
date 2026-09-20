@@ -25,8 +25,9 @@ type Repository interface {
 	Update(ctx context.Context, id string, updates map[string]interface{}) error
 	SoftDelete(ctx context.Context, id string) (int64, error)
 	SumRevenueByBucket(ctx context.Context, filter RevenueFilter) ([]RevenueBucket, error)
-	FindEarliestPaidDate(ctx context.Context) (*time.Time, error)
+	FindEarliestDate(ctx context.Context) (*time.Time, error)
 	SumTotalPriceByTransactionIDs(ctx context.Context, transactionIDs []string) (map[string]int64, error)
+	CountStatusesInRange(ctx context.Context, dateFrom, dateTo string) (StatusCounts, error)
 }
 
 type repository struct {
@@ -202,14 +203,37 @@ func (r *repository) SumTotalPriceByTransactionIDs(ctx context.Context, transact
 	return totals, nil
 }
 
-func (r *repository) FindEarliestPaidDate(ctx context.Context) (*time.Time, error) {
+func (r *repository) CountStatusesInRange(ctx context.Context, dateFrom, dateTo string) (StatusCounts, error) {
+	var counts StatusCounts
+
+	selectExpr := `
+		COUNT(*) FILTER (WHERE payment_status = ?) AS paid_count,
+		COUNT(*) FILTER (WHERE payment_status = ?) AS unpaid_count,
+		COUNT(*) FILTER (WHERE delivery_status = ?) AS pending_deliveries,
+		COUNT(*) FILTER (WHERE delivery_status = ?) AS on_delivery,
+		COUNT(*) FILTER (WHERE delivery_status = ?) AS delivered_count
+	`
+
+	err := r.db.
+		WithContext(ctx).
+		Table("transactions").
+		Select(selectExpr, PAYMENT_STATUS_PAID, PAYMENT_STATUS_UNPAID, DELIVERY_STATUS_PENDING, DELIVERY_STATUS_ON_DELIVERY, DELIVERY_STATUS_DELIVERED).
+		Where("deleted_at IS NULL").
+		Where("date >= ?", dateFrom).
+		Where("date <= ?", dateTo).
+		Scan(&counts).
+		Error
+
+	return counts, err
+}
+
+func (r *repository) FindEarliestDate(ctx context.Context) (*time.Time, error) {
 	var earliest *time.Time
 
 	err := r.db.
 		WithContext(ctx).
 		Table("transactions").
 		Where("deleted_at IS NULL").
-		Where("payment_status = ?", PAYMENT_STATUS_PAID).
 		Select("MIN(date)").
 		Scan(&earliest).
 		Error

@@ -191,7 +191,7 @@ func (u *UseCase) Revenue(ctx context.Context, req RevenueRequest) (RevenueRespo
 			to, _ = time.Parse(DateFormat, req.DateTo)
 		}
 		if req.DateFrom == "" {
-			earliest, err := u.repo.FindEarliestPaidDate(ctx)
+			earliest, err := u.repo.FindEarliestDate(ctx)
 			if err != nil {
 				return RevenueResponse{}, err
 			}
@@ -214,7 +214,7 @@ func (u *UseCase) Revenue(ctx context.Context, req RevenueRequest) (RevenueRespo
 		case PERIOD_1Y:
 			from = today.AddDate(-1, 0, 0)
 		case PERIOD_ALL:
-			earliest, err := u.repo.FindEarliestPaidDate(ctx)
+			earliest, err := u.repo.FindEarliestDate(ctx)
 			if err != nil {
 				return RevenueResponse{}, err
 			}
@@ -253,13 +253,24 @@ func (u *UseCase) Revenue(ctx context.Context, req RevenueRequest) (RevenueRespo
 
 	points := buildPoints(from, to, groupBy, revenueByPeriod)
 
+	counts, err := u.repo.CountStatusesInRange(ctx, filter.DateFrom, filter.DateTo)
+	if err != nil {
+		return RevenueResponse{}, err
+	}
+
 	return RevenueResponse{
-		Period:       req.Period,
-		GroupBy:      groupBy,
-		DateFrom:     filter.DateFrom,
-		DateTo:       filter.DateTo,
-		TotalRevenue: total,
-		Points:       points,
+		Period:            req.Period,
+		GroupBy:           groupBy,
+		DateFrom:          filter.DateFrom,
+		DateTo:            filter.DateTo,
+		TotalRevenue:      total,
+		Points:            points,
+		TransactionCount:  counts.PaidCount + counts.UnpaidCount,
+		PaidCount:         counts.PaidCount,
+		UnpaidCount:       counts.UnpaidCount,
+		PendingDeliveries: counts.PendingDeliveries,
+		OnDelivery:        counts.OnDelivery,
+		DeliveredCount:    counts.DeliveredCount,
 	}, nil
 }
 

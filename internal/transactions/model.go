@@ -153,11 +153,25 @@ type RevenuePoint struct {
 	Revenue int64  `json:"revenue"`
 }
 
+type StatusCounts struct {
+	PaidCount         int64
+	UnpaidCount       int64
+	PendingDeliveries int64
+	OnDelivery        int64
+	DeliveredCount    int64
+}
+
 type RevenueResponse struct {
-	Period       string         `json:"period"`
-	GroupBy      string         `json:"group_by"`
-	DateFrom     string         `json:"date_from"`
-	DateTo       string         `json:"date_to"`
-	TotalRevenue int64          `json:"total_revenue"`
-	Points       []RevenuePoint `json:"points"`
+	Period            string         `json:"period"`
+	GroupBy           string         `json:"group_by"`
+	DateFrom          string         `json:"date_from"`
+	DateTo            string         `json:"date_to"`
+	TotalRevenue      int64          `json:"total_revenue"`
+	Points            []RevenuePoint `json:"points"`
+	TransactionCount  int64          `json:"transaction_count"`
+	PaidCount         int64          `json:"paid_count"`
+	UnpaidCount       int64          `json:"unpaid_count"`
+	PendingDeliveries int64          `json:"pending_deliveries"`
+	OnDelivery        int64          `json:"on_delivery"`
+	DeliveredCount    int64          `json:"delivered_count"`
 }
