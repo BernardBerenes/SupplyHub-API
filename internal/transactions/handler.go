@@ -81,12 +81,14 @@ func (h *Handler) Paginate(ctx *fiber.Ctx) error {
 		})
 	}
 
-	transactions, total, err := h.useCase.Paginate(ctx.Context(), req)
+	transactions, totalPrices, total, err := h.useCase.Paginate(ctx.Context(), req)
 	if err != nil {
 		return presenter.ErrorResponse(ctx, fiber.StatusInternalServerError, "Internal server error", nil)
 	}
 
-	mapped, metadata := presenter.MapToResponseListPaginate(transactions, total, req.Page, req.Limit, ToResponse)
+	mapped, metadata := presenter.MapToResponseListPaginate(transactions, total, req.Page, req.Limit, func(t Transaction) TransactionResponse {
+		return ToResponse(t, totalPrices[t.ID])
+	})
 
 	return presenter.OK(ctx, "Transactions retrieved successfully", PaginateResponse{
 		Page:         metadata.Page,

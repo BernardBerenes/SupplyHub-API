@@ -48,7 +48,7 @@ func (h *Handler) Create(ctx *fiber.Ctx) error {
 	unit := strings.ToUpper(strings.TrimSpace(req.Unit))
 	if !IsValidUnit(unit) {
 		return presenter.ErrorResponse(ctx, fiber.StatusBadRequest, "Invalid request", []presenter.ErrorItem{
-			{Field: "unit", Message: "unit must be PIECES, DOZENS, BOX, or CARTON"},
+			{Field: "unit", Message: "unit must be PIECES or DOZENS"},
 		})
 	}
 
@@ -143,7 +143,7 @@ func (h *Handler) Update(ctx *fiber.Ctx) error {
 		unit := strings.ToUpper(strings.TrimSpace(*req.Unit))
 		if !IsValidUnit(unit) {
 			return presenter.ErrorResponse(ctx, fiber.StatusBadRequest, "Invalid request", []presenter.ErrorItem{
-				{Field: "unit", Message: "unit must be PIECES, DOZENS, BOX, or CARTON"},
+				{Field: "unit", Message: "unit must be PIECES or DOZENS"},
 			})
 		}
 		input.Unit = &unit

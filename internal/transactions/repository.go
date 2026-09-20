@@ -26,6 +26,7 @@ type Repository interface {
 	SoftDelete(ctx context.Context, id string) (int64, error)
 	SumRevenueByBucket(ctx context.Context, filter RevenueFilter) ([]RevenueBucket, error)
 	FindEarliestPaidDate(ctx context.Context) (*time.Time, error)
+	SumTotalPriceByTransactionIDs(ctx context.Context, transactionIDs []string) (map[string]int64, error)
 }
 
 type repository struct {
@@ -156,7 +157,7 @@ func (r *repository) SumRevenueByBucket(ctx context.Context, filter RevenueFilte
 	err := r.db.
 		WithContext(ctx).
 		Table("transactions AS t").
-		Select(bucketExpr+" AS period, COALESCE(SUM(d.quantity * d.price), 0) AS revenue").
+		Select(bucketExpr+" AS period, COALESCE(SUM(d.total_price), 0) AS revenue").
 		Joins("JOIN transaction_details AS d ON d.transaction_id = t.id AND d.deleted_at IS NULL").
 		Where("t.deleted_at IS NULL").
 		Where("t.payment_status = ?", PAYMENT_STATUS_PAID).
@@ -168,6 +169,37 @@ func (r *repository) SumRevenueByBucket(ctx context.Context, filter RevenueFilte
 		Error
 
 	return buckets, err
+}
+
+func (r *repository) SumTotalPriceByTransactionIDs(ctx context.Context, transactionIDs []string) (map[string]int64, error) {
+	totals := make(map[string]int64, len(transactionIDs))
+	if len(transactionIDs) == 0 {
+		return totals, nil
+	}
+
+	var rows []struct {
+		TransactionID string
+		TotalPrice    int64
+	}
+
+	err := r.db.
+		WithContext(ctx).
+		Table("transaction_details").
+		Select("transaction_id, COALESCE(SUM(total_price), 0) AS total_price").
+		Where("transaction_id IN ?", transactionIDs).
+		Where("deleted_at IS NULL").
+		Group("transaction_id").
+		Scan(&rows).
+		Error
+	if err != nil {
+		return nil, err
+	}
+
+	for _, row := range rows {
+		totals[row.TransactionID] = row.TotalPrice
+	}
+
+	return totals, nil
 }
 
 func (r *repository) FindEarliestPaidDate(ctx context.Context) (*time.Time, error) {

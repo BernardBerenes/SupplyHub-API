@@ -67,13 +67,16 @@ func (u *UseCase) Create(ctx context.Context, input CreateInput) error {
 		return err
 	}
 
+	pricePerUnit, totalPrice := CalculatePricing(input.Price, input.Quantity, input.Unit)
+
 	detail := &TransactionDetail{
 		ID:            id.String(),
 		TransactionID: input.TransactionID,
-		Product:       ProductSnapshot{ID: product.ID, Name: product.Name},
+		Product:       ProductSnapshot{ID: product.ID, Name: product.Name, Price: input.Price},
 		Quantity:      input.Quantity,
 		Unit:          input.Unit,
-		Price:         input.Price,
+		PricePerUnit:  pricePerUnit,
+		TotalPrice:    totalPrice,
 	}
 
 	return u.repo.Create(ctx, detail)
@@ -104,6 +107,9 @@ func (u *UseCase) Update(ctx context.Context, transactionID, id string, input Up
 
 	updates := map[string]interface{}{}
 
+	productSnapshot := existing.Product
+	productChanged := false
+
 	if input.ProductID != nil {
 		product, err := u.product.FindByID(ctx, *input.ProductID)
 		if err != nil {
@@ -112,17 +118,40 @@ func (u *UseCase) Update(ctx context.Context, transactionID, id string, input Up
 		if product == nil {
 			return ErrProductNotFound
 		}
-		updates["product"] = ProductSnapshot{ID: product.ID, Name: product.Name}
+		productSnapshot.ID = product.ID
+		productSnapshot.Name = product.Name
+		productChanged = true
 	}
 
+	quantity := existing.Quantity
+	unit := existing.Unit
+	price := RawPrice(existing.PricePerUnit, existing.Unit)
+	recalculate := false
+
 	if input.Quantity != nil {
-		updates["quantity"] = *input.Quantity
+		quantity = *input.Quantity
+		updates["quantity"] = quantity
+		recalculate = true
 	}
 	if input.Unit != nil {
-		updates["unit"] = *input.Unit
+		unit = *input.Unit
+		updates["unit"] = unit
+		recalculate = true
 	}
 	if input.Price != nil {
-		updates["price"] = *input.Price
+		price = *input.Price
+		productSnapshot.Price = price
+		productChanged = true
+		recalculate = true
+	}
+
+	if productChanged {
+		updates["product"] = productSnapshot
+	}
+	if recalculate {
+		pricePerUnit, totalPrice := CalculatePricing(price, quantity, unit)
+		updates["price_per_unit"] = pricePerUnit
+		updates["total_price"] = totalPrice
 	}
 
 	if len(updates) == 0 {
@@ -168,7 +197,7 @@ func (u *UseCase) SyncProductNames(ctx context.Context) error {
 			}
 
 			updates := map[string]interface{}{
-				"product": ProductSnapshot{ID: product.ID, Name: product.Name},
+				"product": ProductSnapshot{ID: product.ID, Name: product.Name, Price: detail.Product.Price},
 			}
 
 			if err := u.repo.Update(ctx, detail.ID, updates); err != nil {

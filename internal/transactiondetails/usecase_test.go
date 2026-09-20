@@ -56,8 +56,11 @@ func (r *fakeRepo) Update(ctx context.Context, id string, updates map[string]int
 		if unit, ok := updates["unit"].(string); ok {
 			r.details[i].Unit = unit
 		}
-		if price, ok := updates["price"].(int64); ok {
-			r.details[i].Price = price
+		if pricePerUnit, ok := updates["price_per_unit"].(int64); ok {
+			r.details[i].PricePerUnit = pricePerUnit
+		}
+		if totalPrice, ok := updates["total_price"].(int64); ok {
+			r.details[i].TotalPrice = totalPrice
 		}
 	}
 	return nil
@@ -118,8 +121,14 @@ func TestCreate_Success(t *testing.T) {
 	if len(repo.details) != 1 {
 		t.Fatalf("expected detail persisted, got %+v", repo.details)
 	}
-	if repo.details[0].Product != (ProductSnapshot{ID: "p1", Name: "Coffee"}) {
-		t.Fatalf("expected product snapshot, got %+v", repo.details[0].Product)
+	if repo.details[0].Product != (ProductSnapshot{ID: "p1", Name: "Coffee", Price: 25000}) {
+		t.Fatalf("expected product snapshot with price, got %+v", repo.details[0].Product)
+	}
+	if want := int64(25000 * 12); repo.details[0].PricePerUnit != want {
+		t.Fatalf("expected price_per_unit = price * 12 for dozens, got %d want %d", repo.details[0].PricePerUnit, want)
+	}
+	if want := int64(25000 * 12 * 12); repo.details[0].TotalPrice != want {
+		t.Fatalf("expected total_price = price * 12 * quantity for dozens, got %d want %d", repo.details[0].TotalPrice, want)
 	}
 }
 
@@ -175,6 +184,46 @@ func TestUpdate_RegeneratesProductSnapshot(t *testing.T) {
 	}
 }
 
+func TestUpdate_RecalculatesTotalPrice(t *testing.T) {
+	repo := &fakeRepo{details: []TransactionDetail{
+		{ID: "d1", TransactionID: "t1", Quantity: 1, Unit: UNIT_PIECES, PricePerUnit: 1000, TotalPrice: 1000},
+	}}
+	uc := NewUseCase(repo, &fakeProductLookup{}, &fakeTransactionLookup{})
+
+	quantity := int64(2)
+	unit := UNIT_DOZENS
+	if err := uc.Update(context.Background(), "t1", "d1", UpdateInput{Quantity: &quantity, Unit: &unit}); err != nil {
+		t.Fatalf("expected success, got error: %v", err)
+	}
+
+	if want := int64(1000 * 2 * 12); repo.details[0].TotalPrice != want {
+		t.Fatalf("expected recalculated total_price %d, got %d", want, repo.details[0].TotalPrice)
+	}
+}
+
+func TestUpdate_PriceUpdatesProductSnapshotAndPricing(t *testing.T) {
+	repo := &fakeRepo{details: []TransactionDetail{
+		{
+			ID: "d1", TransactionID: "t1", Quantity: 2, Unit: UNIT_PIECES,
+			PricePerUnit: 1000, TotalPrice: 2000,
+			Product: ProductSnapshot{ID: "p1", Name: "Coffee", Price: 1000},
+		},
+	}}
+	uc := NewUseCase(repo, &fakeProductLookup{}, &fakeTransactionLookup{})
+
+	price := int64(1500)
+	if err := uc.Update(context.Background(), "t1", "d1", UpdateInput{Price: &price}); err != nil {
+		t.Fatalf("expected success, got error: %v", err)
+	}
+
+	if repo.details[0].Product.Price != 1500 {
+		t.Fatalf("expected product snapshot price updated, got %+v", repo.details[0].Product)
+	}
+	if repo.details[0].PricePerUnit != 1500 || repo.details[0].TotalPrice != 3000 {
+		t.Fatalf("expected recalculated pricing, got %+v", repo.details[0])
+	}
+}
+
 func TestDelete_NotFound(t *testing.T) {
 	repo := &fakeRepo{deletedID: "missing"}
 	uc := NewUseCase(repo, &fakeProductLookup{}, &fakeTransactionLookup{})
@@ -187,8 +236,8 @@ func TestDelete_NotFound(t *testing.T) {
 
 func TestSyncProductNames_UpdatesOnlyPendingTransactionDetails(t *testing.T) {
 	repo := &fakeRepo{details: []TransactionDetail{
-		{ID: "d1", TransactionID: "t1", Product: ProductSnapshot{ID: "p1", Name: "Coffee"}},
-		{ID: "d2", TransactionID: "t2", Product: ProductSnapshot{ID: "p1", Name: "Coffee"}},
+		{ID: "d1", TransactionID: "t1", Product: ProductSnapshot{ID: "p1", Name: "Coffee", Price: 1000}},
+		{ID: "d2", TransactionID: "t2", Product: ProductSnapshot{ID: "p1", Name: "Coffee", Price: 1000}},
 	}}
 	productLookup := &fakeProductLookup{products: map[string]products.Product{"p1": {ID: "p1", Name: "Premium Coffee"}}}
 	transactionLookup := &fakeTransactionLookup{pendingIDs: []string{"t1"}}
@@ -200,6 +249,9 @@ func TestSyncProductNames_UpdatesOnlyPendingTransactionDetails(t *testing.T) {
 
 	if repo.details[0].Product.Name != "Premium Coffee" {
 		t.Fatalf("expected detail of pending transaction synced, got %+v", repo.details[0])
+	}
+	if repo.details[0].Product.Price != 1000 {
+		t.Fatalf("expected snapshot price preserved on name sync, got %+v", repo.details[0])
 	}
 	if repo.details[1].Product.Name != "Coffee" {
 		t.Fatalf("expected detail of non-pending transaction untouched, got %+v", repo.details[1])

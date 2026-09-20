@@ -128,6 +128,35 @@ func TestHandlerPaginate_Success(t *testing.T) {
 	}
 }
 
+func TestHandlerPaginate_IncludesTotalPricePerTransaction(t *testing.T) {
+	repo := &fakeRepo{
+		transactions: []Transaction{{ID: "t1"}, {ID: "t2"}},
+		total:        2,
+		totalPrices:  map[string]int64{"t1": 150000},
+	}
+	app := newTestApp(repo, &fakeStoreLookup{})
+
+	resp := doRequest(t, app, http.MethodPost, "/transactions/paginate", `{}`)
+
+	if resp.StatusCode != fiber.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	body := decodeBody(t, resp)
+	data := body["data"].(map[string]interface{})
+	txs := data["transactions"].([]interface{})
+
+	first := txs[0].(map[string]interface{})
+	if first["total_price"] != float64(150000) {
+		t.Fatalf("expected total_price 150000 for t1, got %v", first["total_price"])
+	}
+
+	second := txs[1].(map[string]interface{})
+	if second["total_price"] != float64(0) {
+		t.Fatalf("expected total_price 0 for t2 with no line items, got %v", second["total_price"])
+	}
+}
+
 func TestHandlerPaginate_InvalidLimit(t *testing.T) {
 	repo := &fakeRepo{}
 	app := newTestApp(repo, &fakeStoreLookup{})

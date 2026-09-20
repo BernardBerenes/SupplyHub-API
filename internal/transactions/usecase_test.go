@@ -16,6 +16,7 @@ type fakeRepo struct {
 	deletedID      string
 	revenueBuckets []RevenueBucket
 	earliestPaid   *time.Time
+	totalPrices    map[string]int64
 }
 
 func (r *fakeRepo) Create(ctx context.Context, transaction *Transaction) error {
@@ -84,6 +85,14 @@ func (r *fakeRepo) SumRevenueByBucket(ctx context.Context, filter RevenueFilter)
 
 func (r *fakeRepo) FindEarliestPaidDate(ctx context.Context) (*time.Time, error) {
 	return r.earliestPaid, nil
+}
+
+func (r *fakeRepo) SumTotalPriceByTransactionIDs(ctx context.Context, transactionIDs []string) (map[string]int64, error) {
+	totals := make(map[string]int64, len(transactionIDs))
+	for _, id := range transactionIDs {
+		totals[id] = r.totalPrices[id]
+	}
+	return totals, nil
 }
 
 type fakeStoreLookup struct {

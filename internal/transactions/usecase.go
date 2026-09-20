@@ -68,7 +68,7 @@ func (u *UseCase) Create(ctx context.Context, input CreateInput) error {
 	return u.repo.Create(ctx, transaction)
 }
 
-func (u *UseCase) Paginate(ctx context.Context, req PaginateRequest) ([]Transaction, int64, error) {
+func (u *UseCase) Paginate(ctx context.Context, req PaginateRequest) ([]Transaction, map[string]int64, int64, error) {
 	offset := (req.Page - 1) * req.Limit
 
 	filter := PaginateFilter{
@@ -78,7 +78,22 @@ func (u *UseCase) Paginate(ctx context.Context, req PaginateRequest) ([]Transact
 		DateTo:         req.DateTo,
 	}
 
-	return u.repo.FindPaginated(ctx, filter, req.Limit, offset)
+	transactions, total, err := u.repo.FindPaginated(ctx, filter, req.Limit, offset)
+	if err != nil {
+		return nil, nil, 0, err
+	}
+
+	ids := make([]string, len(transactions))
+	for i, t := range transactions {
+		ids[i] = t.ID
+	}
+
+	totalPrices, err := u.repo.SumTotalPriceByTransactionIDs(ctx, ids)
+	if err != nil {
+		return nil, nil, 0, err
+	}
+
+	return transactions, totalPrices, total, nil
 }
 
 func (u *UseCase) Update(ctx context.Context, id string, input UpdateInput) error {

@@ -10,13 +10,12 @@ import (
 const (
 	UNIT_PIECES = "PIECES"
 	UNIT_DOZENS = "DOZENS"
-	UNIT_BOX    = "BOX"
-	UNIT_CARTON = "CARTON"
 )
 
 type ProductSnapshot struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Price int64  `json:"price"`
 }
 
 func (p ProductSnapshot) Value() (driver.Value, error) {
@@ -46,7 +45,8 @@ type TransactionDetail struct {
 	Product       ProductSnapshot `json:"product" gorm:"column:product;type:jsonb;not null"`
 	Quantity      int64           `json:"quantity" gorm:"not null"`
 	Unit          string          `json:"unit" gorm:"size:10;not null"`
-	Price         int64           `json:"price" gorm:"not null"`
+	PricePerUnit  int64           `json:"price_per_unit" gorm:"column:price_per_unit;not null;default:0"`
+	TotalPrice    int64           `json:"total_price" gorm:"column:total_price;not null;default:0"`
 	CreatedAt     time.Time       `json:"created_at"`
 	UpdatedAt     time.Time       `json:"updated_at"`
 	DeletedAt     *time.Time      `json:"-" gorm:"index"`
@@ -92,7 +92,8 @@ type TransactionDetailResponse struct {
 	Product       ProductSnapshot `json:"product"`
 	Quantity      int64           `json:"quantity"`
 	Unit          string          `json:"unit"`
-	Price         int64           `json:"price"`
+	PricePerUnit  int64           `json:"price_per_unit"`
+	TotalPrice    int64           `json:"total_price"`
 }
 
 type PaginateResponse struct {
@@ -110,15 +111,40 @@ func ToResponse(d TransactionDetail) TransactionDetailResponse {
 		Product:       d.Product,
 		Quantity:      d.Quantity,
 		Unit:          d.Unit,
-		Price:         d.Price,
+		PricePerUnit:  d.PricePerUnit,
+		TotalPrice:    d.TotalPrice,
 	}
 }
 
 func IsValidUnit(unit string) bool {
 	switch unit {
-	case UNIT_PIECES, UNIT_DOZENS, UNIT_BOX, UNIT_CARTON:
+	case UNIT_PIECES, UNIT_DOZENS:
 		return true
 	default:
 		return false
 	}
+}
+
+// unitMultiplier is how many pieces a single unit of quantity represents. A
+// DOZENS quantity counts dozens rather than pieces, so it expands by 12.
+func unitMultiplier(unit string) int64 {
+	if unit == UNIT_DOZENS {
+		return 12
+	}
+	return 1
+}
+
+// CalculatePricing derives price_per_unit and total_price from the raw,
+// always-per-piece price the client sends.
+func CalculatePricing(price, quantity int64, unit string) (pricePerUnit, totalPrice int64) {
+	pricePerUnit = price * unitMultiplier(unit)
+	totalPrice = pricePerUnit * quantity
+	return pricePerUnit, totalPrice
+}
+
+// RawPrice reverses CalculatePricing's price_per_unit back to the raw,
+// per-piece price, so an update that only touches quantity or unit can
+// recalculate pricing without the client resending price.
+func RawPrice(pricePerUnit int64, unit string) int64 {
+	return pricePerUnit / unitMultiplier(unit)
 }

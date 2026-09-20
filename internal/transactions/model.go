@@ -94,6 +94,7 @@ type TransactionResponse struct {
 	PaymentStatus  string        `json:"payment_status"`
 	DeliveryStatus string        `json:"delivery_status"`
 	Date           string        `json:"date"`
+	TotalPrice     int64         `json:"total_price"`
 }
 
 type PaginateResponse struct {
@@ -104,13 +105,14 @@ type PaginateResponse struct {
 	Transactions []TransactionResponse `json:"transactions"`
 }
 
-func ToResponse(t Transaction) TransactionResponse {
+func ToResponse(t Transaction, totalPrice int64) TransactionResponse {
 	return TransactionResponse{
 		ID:             t.ID,
 		Store:          t.Store,
 		PaymentStatus:  t.PaymentStatus,
 		DeliveryStatus: t.DeliveryStatus,
 		Date:           t.Date.Format(DateFormat),
+		TotalPrice:     totalPrice,
 	}
 }
 
