@@ -258,6 +258,11 @@ func (u *UseCase) Revenue(ctx context.Context, req RevenueRequest) (RevenueRespo
 		return RevenueResponse{}, err
 	}
 
+	storeRevenues, err := u.repo.SumRevenueByStore(ctx, filter.DateFrom, filter.DateTo)
+	if err != nil {
+		return RevenueResponse{}, err
+	}
+
 	return RevenueResponse{
 		Period:            req.Period,
 		GroupBy:           groupBy,
@@ -271,6 +276,7 @@ func (u *UseCase) Revenue(ctx context.Context, req RevenueRequest) (RevenueRespo
 		PendingDeliveries: counts.PendingDeliveries,
 		OnDelivery:        counts.OnDelivery,
 		DeliveredCount:    counts.DeliveredCount,
+		Stores:            storeRevenues,
 	}, nil
 }
 

@@ -3,7 +3,6 @@ package transactions
 import (
 	"context"
 	"errors"
-	"strconv"
 	"time"
 
 	"gorm.io/gorm"
@@ -28,6 +27,7 @@ type Repository interface {
 	FindEarliestDate(ctx context.Context) (*time.Time, error)
 	SumTotalPriceByTransactionIDs(ctx context.Context, transactionIDs []string) (map[string]int64, error)
 	CountStatusesInRange(ctx context.Context, dateFrom, dateTo string) (StatusCounts, error)
+	SumRevenueByStore(ctx context.Context, dateFrom, dateTo string) ([]StoreRevenue, error)
 }
 
 type repository struct {
@@ -95,7 +95,7 @@ func (r *repository) ExistsPendingByStoreAndDate(ctx context.Context, storeID in
 		Table("transactions").
 		Where("deleted_at IS NULL").
 		Where("delivery_status = ?", DELIVERY_STATUS_PENDING).
-		Where("store->>'id' = ?", strconv.FormatInt(storeID, 10)).
+		Where("(store->>'id')::bigint = ?", storeID).
 		Where("date = ?", date.Format(DateFormat)).
 		Count(&count).
 		Error
@@ -225,6 +225,28 @@ func (r *repository) CountStatusesInRange(ctx context.Context, dateFrom, dateTo 
 		Error
 
 	return counts, err
+}
+
+func (r *repository) SumRevenueByStore(ctx context.Context, dateFrom, dateTo string) ([]StoreRevenue, error) {
+	var rows []StoreRevenue
+
+	err := r.db.
+		WithContext(ctx).
+		Table("stores AS s").
+		Select("s.id AS store_id, s.name AS store_name, COALESCE(SUM(d.total_price), 0) AS revenue").
+		Joins(`LEFT JOIN transactions AS t ON (t.store->>'id')::bigint = s.id
+			AND t.deleted_at IS NULL
+			AND t.payment_status = ?
+			AND t.date >= ?
+			AND t.date <= ?`, PAYMENT_STATUS_PAID, dateFrom, dateTo).
+		Joins("LEFT JOIN transaction_details AS d ON d.transaction_id = t.id AND d.deleted_at IS NULL").
+		Where("s.deleted_at IS NULL").
+		Group("s.id, s.name").
+		Order("revenue DESC, s.name ASC").
+		Scan(&rows).
+		Error
+
+	return rows, err
 }
 
 func (r *repository) FindEarliestDate(ctx context.Context) (*time.Time, error) {

@@ -4,7 +4,7 @@ import "time"
 
 type Store struct {
 	ID        int64      `json:"id" gorm:"primaryKey;autoIncrement"`
-	Name      string     `json:"name" gorm:"size:100;not null"`
+	Name      string     `json:"name" gorm:"size:100;not null;index"`
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
 	DeletedAt *time.Time `json:"-" gorm:"index"`

@@ -47,9 +47,9 @@ func (s *StoreSnapshot) Scan(value interface{}) error {
 type Transaction struct {
 	ID             string        `json:"id" gorm:"type:uuid;primaryKey"`
 	Store          StoreSnapshot `json:"store" gorm:"column:store;type:jsonb;not null"`
-	PaymentStatus  string        `json:"payment_status" gorm:"size:10;not null"`
-	DeliveryStatus string        `json:"delivery_status" gorm:"size:15;not null"`
-	Date           time.Time     `json:"date" gorm:"type:date;not null"`
+	PaymentStatus  string        `json:"payment_status" gorm:"size:10;not null;index"`
+	DeliveryStatus string        `json:"delivery_status" gorm:"size:15;not null;index"`
+	Date           time.Time     `json:"date" gorm:"type:date;not null;index"`
 	CreatedAt      time.Time     `json:"created_at"`
 	UpdatedAt      time.Time     `json:"updated_at"`
 	DeletedAt      *time.Time    `json:"-" gorm:"index"`
@@ -161,6 +161,12 @@ type StatusCounts struct {
 	DeliveredCount    int64
 }
 
+type StoreRevenue struct {
+	StoreID   int64  `json:"store_id"`
+	StoreName string `json:"store_name"`
+	Revenue   int64  `json:"revenue"`
+}
+
 type RevenueResponse struct {
 	Period            string         `json:"period"`
 	GroupBy           string         `json:"group_by"`
@@ -174,4 +180,5 @@ type RevenueResponse struct {
 	PendingDeliveries int64          `json:"pending_deliveries"`
 	OnDelivery        int64          `json:"on_delivery"`
 	DeliveredCount    int64          `json:"delivered_count"`
+	Stores            []StoreRevenue `json:"stores"`
 }

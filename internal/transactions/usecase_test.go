@@ -18,6 +18,7 @@ type fakeRepo struct {
 	earliestDate   *time.Time
 	totalPrices    map[string]int64
 	statusCounts   StatusCounts
+	storeRevenues  []StoreRevenue
 }
 
 func (r *fakeRepo) Create(ctx context.Context, transaction *Transaction) error {
@@ -98,6 +99,10 @@ func (r *fakeRepo) SumTotalPriceByTransactionIDs(ctx context.Context, transactio
 
 func (r *fakeRepo) CountStatusesInRange(ctx context.Context, dateFrom, dateTo string) (StatusCounts, error) {
 	return r.statusCounts, nil
+}
+
+func (r *fakeRepo) SumRevenueByStore(ctx context.Context, dateFrom, dateTo string) ([]StoreRevenue, error) {
+	return r.storeRevenues, nil
 }
 
 type fakeStoreLookup struct {
@@ -300,6 +305,34 @@ func TestRevenue_IncludesStatusCounts(t *testing.T) {
 	}
 	if res.PendingDeliveries != 1 || res.OnDelivery != 2 || res.DeliveredCount != 2 {
 		t.Fatalf("expected delivery breakdown 1/2/2, got %+v", res)
+	}
+}
+
+func TestRevenue_IncludesAllStoresEvenWithoutRevenue(t *testing.T) {
+	repo := &fakeRepo{
+		storeRevenues: []StoreRevenue{
+			{StoreID: 1, StoreName: "Toko Surya", Revenue: 5000},
+			{StoreID: 2, StoreName: "Toko Makmur", Revenue: 0},
+		},
+	}
+	uc := NewUseCase(repo, &fakeStoreLookup{})
+
+	res, err := uc.Revenue(context.Background(), RevenueRequest{
+		DateFrom: "2026-09-01",
+		DateTo:   "2026-09-30",
+	})
+	if err != nil {
+		t.Fatalf("expected success, got %v", err)
+	}
+
+	if len(res.Stores) != 2 {
+		t.Fatalf("expected all stores present, got %+v", res.Stores)
+	}
+	if res.Stores[0].StoreID != 1 || res.Stores[0].Revenue != 5000 {
+		t.Fatalf("expected first store revenue 5000, got %+v", res.Stores[0])
+	}
+	if res.Stores[1].StoreID != 2 || res.Stores[1].Revenue != 0 {
+		t.Fatalf("expected second store revenue 0, got %+v", res.Stores[1])
 	}
 }
 

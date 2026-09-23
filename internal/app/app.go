@@ -120,6 +120,10 @@ func New(cfg *config.Config) (*fiber.App, error) {
 		return nil, err
 	}
 
+	if err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_transactions_store_id ON transactions (((store->>'id')::bigint))`).Error; err != nil {
+		return nil, err
+	}
+
 	fiberApp := fiber.New()
 	fiberApp.Use(middleware.Recovery)
 	fiberApp.Use(middleware.CORS(cfg.CORSOrigins))
